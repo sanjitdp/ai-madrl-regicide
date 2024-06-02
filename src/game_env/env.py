@@ -7,7 +7,7 @@ import random
 Setup for a 2-player game of Regicide, to be played by a person through terminal or an AI model.
 
 TODO:
-* Implement play area (cards played go here until enemy is killed, then they are moved to discard pile)
+* Implement play area (cards played go here until enemy is killed, then they are moved to discard pile) - DONE
 * Implement random selection of new enemy
 
 """
@@ -94,13 +94,34 @@ class RegicideEnv(gym.Env):
                 if suit == "clubs":
                     self.curr_enemy.health -= attack
 
-    def play_card(self, cards):
+    def play_card(self, action):
+        if len(action) == 1:
+            play = int(action) - 1
+            cards_played = [self.player_cards[play]]
+        else:
+            plays = []
+            [plays.append(int(card)-1) for card in action.split(',')],
+            cards_played = [self.player_cards[play] for play in plays]
+
+        if len(cards_played) >= 2: # card combo: combine same-numbered cards summing under 10
+            if any([card.attack != cards_played[0].attack for card in cards_played]) and len(cards_played) > 2:
+                print(f"Invalid play. Cards must have the same value, or paired with one animal companion, to be played together.\nAttempted to play: {[c.name for c in cards_played]}")
+                return False, False, False
+            if sum(card.attack for card in cards_played) > 10:
+                print(f"Invalid play. Combo card plays cannot sum to a value greater than 10.\nAttempted to play: {[c.name for c in cards_played]}")
+                return False, False, False
+            if len(cards_played) > 2 and any([card.attack == 1 for card in cards_played]):
+                print(f"Invalid play. Animal companions can only be played with up to one additional card.\nAttempted to play: {[c.name for c in cards_played]}")
+                return False, False, False
+        print(f"You played {', '.join([c.name for c in cards_played])}")
+
         attack = 0
         suits = set()
+        valid = True
 
-        if len(cards) != 1:
-            animals = sum([c.attack == 1 for c in cards])
-            for card in cards:
+        if len(cards_played) != 1:
+            animals = sum([c.attack == 1 for c in cards_played])
+            for card in cards_played:
                 suits.add(card.suit)
                 attack += card.attack
                 # Suit effect
@@ -109,7 +130,7 @@ class RegicideEnv(gym.Env):
                 self.player_cards.remove(card) # TODO implement or remove player_hand
                 self.discard_cards.append(card)
         else:
-            card = cards[0]
+            card = cards_played[0]
             attack = card.attack
             suits.add(card.suit)
             # Suit effect
@@ -135,7 +156,7 @@ class RegicideEnv(gym.Env):
             enemy_is_dead = True
             perfect_kill = False
         
-        return enemy_is_dead, perfect_kill
+        return enemy_is_dead, perfect_kill, valid
 
     # Gym functions ___________________________________________
     def reset(self, num_players):
@@ -209,28 +230,10 @@ class RegicideEnv(gym.Env):
             game_over = True
             return observation, game_over
 
-        if len(action) == 1:
-            play = int(action) - 1
-            print(f"You played: {self.player_cards[play].name}")
-            enemy_is_dead, perfect_kill = self.play_card([self.player_cards[play]])
-
-        else:
-            plays = []
-            [plays.append(int(card)-1) for card in action.split(',')],
-            cards_played = [self.player_cards[play] for play in plays]
-            # TODO Move to play_card()
-            if len(cards_played) >= 2: # card combo: combine same-numbered cards summing under 10
-                if any([card.attack != cards_played[0].attack for card in cards_played]) and len(cards_played) > 2:
-                    print(f"Invalid play. Cards must have the same value, or paired with one animal companion, to be played together.\nAttempted to play: {[c.name for c in cards_played]}")
-                    return None
-                if sum(card.attack for card in cards_played) > 10:
-                    print(f"Invalid play. Combo card plays cannot sum to a value greater than 10.\nAttempted to play: {[c.name for c in cards_played]}")
-                    return None
-                if len(cards_played) > 2 and any([card.attack == 1 for card in cards_played]):
-                    print(f"Invalid play. Animal companions can only be played with up to one additional card.\nAttempted to play: {[c.name for c in cards_played]}")
-                    return None
-            print(f"You played {', '.join([c.name for c in cards_played])}")
-            enemy_is_dead, perfect_kill = self.play_card(cards_played)
+        enemy_is_dead, perfect_kill, valid = self.play_card(action)
+        
+        if not valid:
+            return observation, game_over
         
         if enemy_is_dead:
             print(f"⚔ {self.curr_enemy.name} defeated! ⚔")
@@ -241,6 +244,8 @@ class RegicideEnv(gym.Env):
                 if self.curr_level == 3:    # Game won
                     print(f"✦✦✦ —— ⚔ You've saved the kingdom from all corrupted regals! ⚔ —— ✦✦✦\n")
                     game_over = True
+                else:
+                    self.curr_suits_left = ["hearts", "diamonds", "clubs", "spades"]
 
             # Discard enemy card
             if perfect_kill:
@@ -250,11 +255,8 @@ class RegicideEnv(gym.Env):
                 self.discard_cards.append(self.curr_enemy)
 
             # Pull new enemy card      
-            random_suit = random.randint(0, len(self.curr_suits_left)) 
-            self.curr_suits_left.pop()
-
-            random.shuffle(self.curr_suits_left)
-            random_suit = self.curr_suits_left.pop()
+            random_suit = random.randint(0, len(self.curr_suits_left)-1) 
+            self.curr_suits_left.pop(random_suit)
             self.curr_enemy = self.enemies[self.curr_level][random_suit]
 
         else: # enemy attack turn
@@ -263,7 +265,7 @@ class RegicideEnv(gym.Env):
             # no choice can win. game over!
             total_health = sum(card.health for card in self.player_cards)
             if total_health < self.curr_enemy.attack:
-                print(f"The {self.curr_enemy} slaughtered your remaining champions...\n")
+                print(f"The {self.curr_enemy.name} slaughtered your remaining champions...\n")
                 print(f"Innocents perished as corruption overtook the kingdom.\n")
                 print("☠ Game over. ☠")
                 game_over = True
@@ -282,6 +284,8 @@ class RegicideEnv(gym.Env):
                     
                     if sacrificed_health < self.curr_enemy.attack:
                         print(f"These cards do not suffice. They can only bear {sacrificed_health} damage.")
+                    if len(set(sacrificed_cards)) != len(sacrificed_cards):
+                        print(f"You cannot select the same card twice.")
                     else:
                         for card in sacrificed_cards:
                             self.player_cards.remove(card)
@@ -297,6 +301,7 @@ class RegicideEnv(gym.Env):
             turn = "player"
 
         if turn == "player":
+            print("—————————————————————")  
             print("\n%% Game stats %%%%%%")
             print("suits remaining:", ', '.join(self.curr_suits_left))
             print("discard:", len(self.discard_cards))
