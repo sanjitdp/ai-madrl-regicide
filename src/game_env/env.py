@@ -4,13 +4,8 @@ import numpy as np
 import random
 
 """
+REGICIDE
 Setup for a 2-player game of Regicide, to be played by a person through terminal or an AI model.
-
-TODO:
-* Fix incorrect card effects
-* Fix duplicate cards being drawn
-* Fix duplicate enemies appearing and not matching suits left
-* Implement 2-player game
 """
 
 class Card:
@@ -87,8 +82,6 @@ class RegicideEnv(gym.Env):
                         print(s.name)
                     if selected:
                         [self.tavern_cards.insert(0,s) for s in selected[::-1]] # Move cards to bottom of tavern pile
-                        for t in self.tavern_cards:
-                            print(t.name)
                     if selected in self.discard_cards:
                         self.discard_cards.remove(selected) # Remove moved cards from discard
 
@@ -249,7 +242,6 @@ class RegicideEnv(gym.Env):
         return observation, info
  
     def step(self, action):
-        print("step!", len(self.player_cards))
         game_over = False
         if len(self.player_cards) <= 0:
             print(f"\nNone of your champions remain standing... Surrounded, your ally's champions fall soon after.\n")
