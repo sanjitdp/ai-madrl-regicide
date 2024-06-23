@@ -97,7 +97,7 @@ class RegicideEnv(gym.Env):
                 if suit == "diamonds":
                     old_P_len, old_A_len = len(self.player_cards), len(self.ally_cards)
                     diamond_value = attack
-                    while diamond_value and ((len(self.player_cards) + len(self.ally_cards)) <= 14) and self.tavern_cards: # Each player draws until the card value is met, all hands are full, or tavern is empty
+                    while diamond_value and ((len(self.player_cards) + len(self.ally_cards)) < 14) and self.tavern_cards: # Each player draws until the card value is met, all hands are full, or tavern is empty
                         if len(self.player_cards) < 7:
                             self.player_cards.append(self.tavern_cards.pop())
                             diamond_value -= 1
@@ -116,7 +116,7 @@ class RegicideEnv(gym.Env):
 
     def play_card(self, action):
         for a in action.split(','): # index error
-            if len(a) > 1 or int(a) >= len(self.player_cards):
+            if len(a) > 1 or int(a) > len(self.player_cards):
                     print(f"Invalid index.")
                     return False, False
 
@@ -255,11 +255,12 @@ class RegicideEnv(gym.Env):
         return observation, info
  
     def step(self, action):
+        print("step!", len(self.player_cards))
         game_over = False
-        if len(self.player_cards) == 0:
-            print(f"None of your champions remain standing...\n")
+        if len(self.player_cards) <= 0:
+            print(f"\nNone of your champions remain standing... Surrounded, your ally's champions fall soon after.\n")
             print(f"Innocents perished as corruption overtook the kingdom.\n")
-            print("☠  Game over. ☠")
+            print("☠\tGame over.\t☠")
             game_over = True
             return observation, game_over
 
@@ -300,7 +301,7 @@ class RegicideEnv(gym.Env):
             if total_health < self.curr_enemy.attack:
                 print(f"The {self.curr_enemy.name} slaughtered your remaining champions...\n")
                 print(f"Innocents perished as corruption overtook the kingdom.\n")
-                print("☠ Game over. ☠")
+                print("☠\tGame over.\t☠")
                 game_over = True
                 return observation, game_over
 
@@ -324,6 +325,12 @@ class RegicideEnv(gym.Env):
                             self.player_cards.remove(card)
                             self.played_cards.append(card)
                         break
+        
+        if len(self.ally_cards) <= 0:
+            print(f"\nNone of your ally's champions remain standing... Surrounded, your champions fall soon after.\n")
+            print(f"Innocents perished as corruption overtook the kingdom.\n")
+            print("☠\tGame over.\t☠")
+            game_over = True
 
         self.swap_turn()
         return observation, game_over  # return (observation, reward, terminated_bool (whether game is over), truncated=False (end game early), info)
@@ -344,8 +351,6 @@ class RegicideEnv(gym.Env):
             print("tavern: ", len(self.tavern_cards))
             print(f"your hand: {len(self.player_cards)}/7")
             print(f"ally hand: {len(self.ally_cards)}/7")
-            for d in self.discard_cards:
-                print(d.name)
 
         if self.played_cards:
             print("\n%% Play area %%%%%%")
@@ -373,8 +378,8 @@ game_over = False
 env1.render("start")
 while not game_over:
     observation, game_over = env1.step(input('--> '))
-    env1.render()
     # frame, reward, is_done = env1.step(env.action_space.sample())
-
     if game_over:
         break
+    else:
+        env1.render()
