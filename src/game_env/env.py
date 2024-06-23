@@ -57,8 +57,6 @@ class RegicideEnv(gym.Env):
                 "enemy_attack":     Discrete(21),
                 "num_discard":      Discrete(53),
                 "num_tavern":       Discrete(53),
-                "player_hand":      MultiDiscrete([53] * 7),
-                "ally_hand":        MultiDiscrete([53] * 7),
                 "turn":             Discrete(2)
             }
         )
@@ -160,7 +158,7 @@ class RegicideEnv(gym.Env):
             attack += card.attack
             # print("a:", attack.name)
             # Move card to discard pile
-            self.player_cards.remove(card) # TODO implement or remove player_hand
+            self.player_cards.remove(card)
             self.played_cards.append(card)
         
         # Suit(s) effect
@@ -184,9 +182,9 @@ class RegicideEnv(gym.Env):
         self.turn = 1 if self.turn == 2 else 2
 
         # Swap player and ally hands
-        temp_cards, temp_hand = self.player_cards, self.player_hand
-        self.player_cards, self.player_hand = self.ally_cards, self.ally_hand
-        self.ally_cards, self.ally_hand = temp_cards, temp_hand
+        temp_cards = self.player_cards
+        self.player_cards = self.ally_cards
+        self.ally_cards = temp_cards
 
     # Gym functions ___________________________________________
     def reset(self, num_players):
@@ -222,13 +220,11 @@ class RegicideEnv(gym.Env):
         self.enemy_health    = 20 # enemies[curr_enemy].health
         self.num_discard     = 0
         self.num_tavern      = 26 # 52 - 12 enemies - 7*2 cards in both player hands
-        self.player_hand     = in_play[:max_hand]
-        self.ally_hand       = in_play[max_hand:2*max_hand]
-        self.player_cards    = self.tavern_cards[-max_hand:]
-        self.ally_cards      = self.tavern_cards[-2*max_hand:-max_hand]
+        self.player_cards    = in_play[:max_hand]
+        self.ally_cards      = in_play[max_hand:2*max_hand]
         self.played_cards    = []
         self.discard_cards   = []
-        self.tavern_cards    = self.tavern_cards[num_players*max_hand:]
+        self.tavern_cards    = self.cards
 
         game_running = True
 
@@ -242,8 +238,6 @@ class RegicideEnv(gym.Env):
             self.enemy_health,   
             self.num_discard,    
             self.num_tavern,     
-            self.player_hand,    
-            self.ally_hand,
             self.player_cards,
             self.ally_cards,
             self.played_cards,
@@ -272,10 +266,10 @@ class RegicideEnv(gym.Env):
         
         if enemy_is_dead:
             print("\n—————————————————————") 
-            print(f"\n⚔ {self.curr_enemy.name} defeated! ⚔")
+            print(f"\n⚔\t{self.curr_enemy.name} defeated!\t⚔")
             
             if len(self.curr_suits_left) == 0: # Moving up a rank (jacks -> queens -> kings)
-                print(f"♛ Level defeated! ♛") 
+                print(f"♛\tlevel defeated!\t♛") 
                 self.curr_level += 1
                 if self.curr_level == 3:    # Game won
                     print(f"✦✦✦ —— ⚔ You've saved the kingdom from all corrupted regals! ⚔ —— ✦✦✦\n")
@@ -299,7 +293,7 @@ class RegicideEnv(gym.Env):
             # no choice can win. game over!
             total_health = sum(card.health for card in self.player_cards)
             if total_health < self.curr_enemy.attack:
-                print(f"The {self.curr_enemy.name} slaughtered your remaining champions...\n")
+                print(f"The {self.curr_enemy.name} slaughtered your remaining champions... Surrounded, your ally's champions fell soon after.\n")
                 print(f"Innocents perished as corruption overtook the kingdom.\n")
                 print("☠\tGame over.\t☠")
                 game_over = True
