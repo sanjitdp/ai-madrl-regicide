@@ -1,6 +1,7 @@
 from env import RegicideEnv
 from agent import RegicideAgent
 import numpy as np
+from tqdm import tqdm
 
 # helper functions
 def vectorize_obs(observation):
@@ -27,7 +28,7 @@ def vectorize_action(action):
 
 # hyperparameters
 learning_rate = 0.01
-n_episodes = 100000
+n_episodes = 1000000
 start_epsilon = 1.0
 epsilon_decay = start_epsilon / n_episodes / 2  # reduce the exploration over time
 final_epsilon = 0.1
@@ -42,23 +43,23 @@ agent = RegicideAgent(
 
 # Create env
 env = RegicideEnv()
-observation = vectorize_obs(env.reset())
-game_over = False
-turn_count = 0
-reward = 0
 
-# Start playing
-env.render("start")
-while not game_over:
-    turn_count += 1
-    action = env.action_space.sample()
-    next_observation, game_over, reward = env.step(env.do_action(action))
-    action, next_observation = vectorize_action(action), vectorize_obs(next_observation)
-    agent.update(action, observation, game_over, reward, next_observation)
-    if game_over:
-        break
-    else:
-        env.render()
+# Play and learn
+for episode in tqdm(range(n_episodes)):
+
+    observation = vectorize_obs(env.reset())
+    game_over, turn_count, reward = False, 0, 0
+
+    while not game_over:
+        turn_count += 1
+
+        action = env.action_space.sample()
+        next_observation, game_over, reward = env.step(env.do_action(action))
+
+        action, next_observation = vectorize_action(action), vectorize_obs(next_observation)
+        agent.update(action, observation, game_over, reward, next_observation)
+        
         observation = next_observation
-print("Turn count:", turn_count)
-agent.decay_epsilon(epsilon_decay)
+
+    print("Turn count:", turn_count)
+    agent.decay_epsilon(epsilon_decay)

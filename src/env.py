@@ -187,6 +187,10 @@ class RegicideEnv(gym.Env):
         return enemy_is_dead, valid
 
     def sacrifice_card(self, action):
+        if len(action) == 0 and self.enemy_attack > 0:
+            print("No cards selected.")
+            return False
+
         sacrificed_indexes = action.split(',')
 
         for sacrificed_index in sacrificed_indexes:
@@ -198,9 +202,7 @@ class RegicideEnv(gym.Env):
         sacrificed_health = sum(card.health for card in sacrificed_cards)
         print(f"You selected {', '.join([card.name for card in sacrificed_cards])} for sacrifice.")
         
-        if len(sacrificed_indexes) == 0 and self.enemy_attack > 0:
-            print("No cards selected.")
-            return False
+
         if sacrificed_health < self.curr_enemy.attack:
             print(f"These cards do not suffice. They can only bear {sacrificed_health} damage.")
             return False
@@ -340,12 +342,12 @@ class RegicideEnv(gym.Env):
                 print("☠\tGame over.\t☠")
                 game_over = True
                 reward = -1
-                return observation, game_over, reward
+                return self.obs, game_over, reward
 
             # player must select which cards to give up
             else:
                 if self.curr_enemy.attack == 0:
-                    return observation, game_over, reward
+                    return self.obs, game_over, reward
 
                 valid = self.sacrifice_card(action[1]) # Returns whether selection is valid and handles card transfer
 
