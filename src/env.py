@@ -64,7 +64,7 @@ class AnimalCompanion(Card):
 class RegicideEnv(gym.Env):
     def __init__(self):
         super().__init__()
-        self.suit_map = {'hearts': 0, 'diamonds': 1, 'spades': 2, 'clubs': 3}
+        self.suit_map = {'hearts': 1, 'diamonds': 2, 'spades': 3, 'clubs': 4}
         self.action_space = Tuple([MultiBinary(7), MultiBinary(7),])
         self.observation_space = Dict(
             {
@@ -125,6 +125,10 @@ class RegicideEnv(gym.Env):
                     self.curr_enemy.health -= attack
 
     def play_card(self, action):
+        if not action:
+            print("No cards selected.")
+            return False, False
+
         for a in action.split(','): # index error
             if len(a) > 1 or int(a) > len(self.player_cards):
                     print(f"Invalid index.")
@@ -184,20 +188,25 @@ class RegicideEnv(gym.Env):
 
     def sacrifice_card(self, action):
         sacrificed_indexes = action.split(',')
+
+        for sacrificed_index in sacrificed_indexes:
+            if int(sacrificed_index) > len(self.player_cards) or int(sacrificed_index) <= 0:
+                print(f"Invalid index.")
+                return False
+
         sacrificed_cards = [self.player_cards[int(i)-1] for i in sacrificed_indexes]
         sacrificed_health = sum(card.health for card in sacrificed_cards)
         print(f"You selected {', '.join([card.name for card in sacrificed_cards])} for sacrifice.")
         
+        if len(sacrificed_indexes) == 0 and self.enemy_attack > 0:
+            print("No cards selected.")
+            return False
         if sacrificed_health < self.curr_enemy.attack:
             print(f"These cards do not suffice. They can only bear {sacrificed_health} damage.")
             return False
         if len(set(sacrificed_cards)) != len(sacrificed_cards):
             print(f"You cannot select the same card twice.")
             return False
-        for sacrificed_index in sacrificed_indexes:
-            if int(sacrificed_index) > len(sacrificed_cards) or int(sacrificed_index) <= 0:
-                print(f"Invalid index.")
-                return False
 
         for card in sacrificed_cards:
             self.player_cards.remove(card)
@@ -214,7 +223,7 @@ class RegicideEnv(gym.Env):
         self.ally_cards = temp_cards
 
     # Gym functions ___________________________________________
-    def reset(self, num_players):
+    def reset(self):
         super().reset()
 
         self.turn = 1 # 1 for player 1, 2 for player 2
@@ -226,6 +235,7 @@ class RegicideEnv(gym.Env):
                 self.cards.append(Card(suit, number))
         random.shuffle(self.cards)
 
+        num_players = 2
         max_hand    = 9 - num_players
         in_play     = self.cards[-num_players*max_hand:]
         self.cards  = self.cards[:-num_players*max_hand] # remove cards in play
@@ -256,7 +266,7 @@ class RegicideEnv(gym.Env):
         self.obs = {
             # Enemies left
             "enemies_left":     12,
-            "curr_suits_left":  3,
+            "curr_suits_left":  [self.suit_map[s] for s in self.curr_suits_left],
 
             # Current enemy stats
             "enemy_suit":       random_suit,
@@ -268,7 +278,7 @@ class RegicideEnv(gym.Env):
             "num_tavern":       self.num_tavern,
 
             # Cards in hand
-            "player_card_suits":    [c.suit for c in self.player_cards],
+            "player_card_suits":    [self.suit_map[c.suit] for c in self.player_cards],
             "player_card_values":   [c.attack for c in self.player_cards],
             "num_ally_cards":       len(self.ally_cards)
             }
@@ -291,6 +301,7 @@ class RegicideEnv(gym.Env):
         enemy_is_dead, valid = self.play_card(action[0])
         
         if not valid: # Bot should be punished for invalid moves
+            game_over = True
             reward = -999999
             return self.obs, game_over, reward
         
@@ -339,14 +350,15 @@ class RegicideEnv(gym.Env):
                 valid = self.sacrifice_card(action[1]) # Returns whether selection is valid and handles card transfer
 
                 if not valid:
+                    game_over = True
                     reward = -999999
         
         if len(self.ally_cards) <= 0:
             print(f"\nNone of your ally's champions remain standing... Surrounded, your champions fall soon after.\n")
             print(f"Innocents perished as corruption overtook the kingdom.\n")
             print("☠\tGame over.\t☠")
-            reward = -1
             game_over = True
+            reward = -1
 
         self.obs = {
             # Enemies left
@@ -363,13 +375,13 @@ class RegicideEnv(gym.Env):
             "num_tavern":       self.num_tavern,
 
             # Cards in hand
-            "player_card_suits":    [c.suit for c in self.player_cards],
+            "player_card_suits":    [self.suit_map[c.suit] for c in self.player_cards],
             "player_card_values":   [c.attack for c in self.player_cards],
             "num_ally_cards":       len(self.ally_cards),
         }
 
         self.swap_turn()
-        return observation, game_over, reward  # return (observation, reward, terminated_bool (whether game is over), truncated=False (end game early), info)
+        return self.obs, game_over, reward
 
     def render(self, turn="player"):
         if turn == "start":
@@ -406,19 +418,20 @@ class RegicideEnv(gym.Env):
             if self.curr_enemy.attack:
                 print(f"Player {self.turn}: Select which cards to suffer {self.curr_enemy.attack} damage.")
 
-""" Run """
-env1 = RegicideEnv()
-observation = env1.reset(num_players = 2)
-game_over = False
-env1.render("start")
-turn_count = 0
-reward = 0
-while not game_over and reward >= 0:
-    turn_count += 1
-    # observation, game_over, reward = env1.step(input('--> '))
-    observation, game_over, reward = env1.step(env1.do_action(env1.action_space.sample()))
-    if game_over or reward < 0:
-        break
-    else:
-        env1.render()
-print("Turn count:", turn_count)
+# """ Run """
+# env1 = RegicideEnv()
+# observation = env1.reset()
+# game_over = False
+# env1.render("start")
+# turn_count = 0
+# reward = 0
+
+# while not game_over:
+#     turn_count += 1
+#     observation, game_over, reward = env1.step(env1.do_action(env1.action_space.sample()))
+#     if game_over:
+#         break
+#     else:
+#         env1.render()
+
+# print("Turn count:", turn_count)
