@@ -4,14 +4,37 @@ import numpy as np
 import random
 
 """
-REGICIDE
+REGICIDE ENV
 Setup for a 2-player game of Regicide, to be played by a person through terminal or an AI model.
+
+TODO
+* If your cards go to 0, the game still gives your ally a chance to play diamonds. Check if this is valid (Probably isn't)
+
+%%%%%%%%
+
+* Action space
+Draw one or more valid cards by index (format: #,#,#).
+
+* Observation space
+Enemies left:           number of enemies left, list of current suits left, 
+Current enemy stats:    enemy suit, enemy health, enemy attack,
+Cards to draw:          number of cards in discard pile, number of cards in tavern deck,
+Cards in hand:          list of cards in hand
+
+* Rewards
+Defeat jack     + 1
+Defeat queen    + 2
+Defeat king     + 3
+Lose game       - 1
+Invalid move    - 999999
 """
 
 class Card:
     def __init__(self, suit, number):
         self.suit = suit
         self.number = number
+        suit_map = {'hearts': 0, 'diamonds': 1, 'spades': 2, 'clubs': 3}
+        self.ID = suit_map[self.suit] * 13 + self.number
 
         if number not in {11, 12, 13}:
             self.attack = number
@@ -41,35 +64,34 @@ class AnimalCompanion(Card):
 class RegicideEnv(gym.Env):
     def __init__(self):
         super().__init__()
-
-        self.action_space = Tuple([MultiBinary(7), MultiBinary(7)])
+        self.suit_map = {'hearts': 0, 'diamonds': 1, 'spades': 2, 'clubs': 3}
+        self.action_space = Tuple([MultiBinary(7), MultiBinary(7),])
         self.observation_space = Dict(
             {
-                "curr_enemy":       Discrete(12),
+                # Enemies left
                 "enemies_left":     Discrete(12),
                 "curr_suits_left":  MultiDiscrete([5] * 3),
+
+                # Current enemy stats
+                "enemy_suit":       Discrete(4),
                 "enemy_health":     Discrete(21),
-                "enemy_attack":     Discrete(21),
+                "enemy_attack":     Discrete(41),
+
+                # Cards to draw
                 "num_discard":      Discrete(53),
                 "num_tavern":       Discrete(53),
-                "turn":             Discrete(2)
+
+                # Cards in hand
+                "player_card_suits":    MultiDiscrete([5] * 7), 
+                "player_card_values":   MultiDiscrete([14] * 7),
             }
         )
+
     # Helper functions ___________________________________________
-    def print_rules(self):
-        print("\n%% Rules %%%%%%") 
-        print("◈  Each turn, you attack an enemy by playing one or more cards.")
-        print("◈  If the enemy is still alive, you must suffer their attack by sacrificing cards.\n")
-        print("◈  Cards have health and attack equal to their value.\n")
-        print("◈  Animal companions have a value of one and can be paired with cards.")
-        print("◈  Cards of the same value can be paired if their values sum to 10 or less.\n")
-        print("◈  There are thRree sets of four enemies, and each set is stronger than the last.")
-        print("◈  Dropping an enemy's health to exactly 0 is a perfect kill and it gets placed directly into the tavern.\n")
-        print("◈  Each suit applies the following effects with x being the card value. Effects are negated if the enemy is of the same suit.")
-        print("     ♥ hearts   — move x cards from discard pile to tavern")
-        print("     ♦ diamonds — move x total cards from tavern to player and ally hands")
-        print("     ♠ spades   — reduce enemy attack by x")
-        print("     ♣ clubs    — double attack")
+    def do_action(self, action):
+        player_attack = ",".join(str(n+1) for n in np.nonzero(action[0])[0])
+        player_defend = ",".join(str(n+1) for n in np.nonzero(action[1])[0])
+        return (player_attack, player_defend)
 
     def apply_suit(self, suits, attack):
         for suit in suits:
@@ -78,8 +100,6 @@ class RegicideEnv(gym.Env):
                 if suit == "hearts":
                     selected = self.discard_cards[-attack:]
                     self.discard_cards = self.discard_cards[:-attack]
-                    for s in selected:
-                        print(s.name)
                     if selected:
                         [self.tavern_cards.insert(0,s) for s in selected[::-1]] # Move cards to bottom of tavern pile
                     if selected in self.discard_cards:
@@ -98,7 +118,6 @@ class RegicideEnv(gym.Env):
                     print(f"Player:\t{old_P_len}/7 —> {len(self.player_cards)}/7")
                     print(f"Ally:\t{old_A_len}/7 —> {len(self.ally_cards)}/7")
                     
-
                 if suit == "spades":
                     self.curr_enemy.attack = max(0, self.curr_enemy.attack - attack)
 
@@ -111,12 +130,6 @@ class RegicideEnv(gym.Env):
                     print(f"Invalid index.")
                     return False, False
 
-        if action == "R":   # print rules
-            self.print_rules()
-            print(f"\n%% Player {self.turn} turn %%%%%%")
-            print("Play cards by inputting the index(es), comma-separated.")
-            action = input("--> ")
-
         if len(action) == 1: # valid index(es), check plays
             play = int(action) - 1
             cards_played = [self.player_cards[play]]
@@ -127,16 +140,16 @@ class RegicideEnv(gym.Env):
 
         if len(cards_played) >= 2: # check card validity
             if any([card.attack != cards_played[0].attack for card in cards_played]) and len(cards_played) > 2: # Playing different-valued cards together
-                print(f"Invalid play. Cards must have the same value, or paired with one animal companion, to be played together.\nAttempted to play: {[c.name for c in cards_played]}")
+                print(f"Invalid play. Cards must have the same value, or paired with one animal companion, to be played together.\nAttempted to play: {', '.join([c.name for c in cards_played])}")
                 return False, False
             if sum(card.attack for card in cards_played) > 10 and not any([card.attack == 1 for card in cards_played]): # Playing same-valued cards with sum > 10
-                print(f"Invalid play. Combo card plays cannot sum to a value greater than 10.\nAttempted to play: {[c.name for c in cards_played]}")
+                print(f"Invalid play. Combo card plays cannot sum to a value greater than 10.\nAttempted to play: {', '.join([c.name for c in cards_played])}")
                 return False, False
             if len(cards_played) > 2 and any([card.attack == 1 for card in cards_played]): # Playing animal companions with more than one other card
-                print(f"Invalid play. Animal companions can only be played with up to one additional card.\nAttempted to play: {[c.name for c in cards_played]}")
+                print(f"Invalid play. Animal companions can only be played with up to one additional card.\nAttempted to play: {', '.join([c.name for c in cards_played])}")
                 return False, False
             if len(set(cards_played)) != len(cards_played): # Inputting same index 
-                print(f"Invalid play. You cannot select the same card more than once per play: {[c.name for c in cards_played]}")
+                print(f"Invalid play. You cannot select the same card more than once per play: {', '.join([c.name for c in cards_played])}")
                 return False, False
         
         print(f"You played {', '.join([c.name for c in cards_played])}")
@@ -146,10 +159,8 @@ class RegicideEnv(gym.Env):
         valid = True
 
         for card in cards_played:
-            # print("c:", card.name)
             suits.add(card.suit)
             attack += card.attack
-            # print("a:", attack.name)
             # Move card to discard pile
             self.player_cards.remove(card)
             self.played_cards.append(card)
@@ -170,6 +181,29 @@ class RegicideEnv(gym.Env):
             enemy_is_dead = True
         
         return enemy_is_dead, valid
+
+    def sacrifice_card(self, action):
+        sacrificed_indexes = action.split(',')
+        sacrificed_cards = [self.player_cards[int(i)-1] for i in sacrificed_indexes]
+        sacrificed_health = sum(card.health for card in sacrificed_cards)
+        print(f"You selected {', '.join([card.name for card in sacrificed_cards])} for sacrifice.")
+        
+        if sacrificed_health < self.curr_enemy.attack:
+            print(f"These cards do not suffice. They can only bear {sacrificed_health} damage.")
+            return False
+        if len(set(sacrificed_cards)) != len(sacrificed_cards):
+            print(f"You cannot select the same card twice.")
+            return False
+        for sacrificed_index in sacrificed_indexes:
+            if int(sacrificed_index) > len(sacrificed_cards) or int(sacrificed_index) <= 0:
+                print(f"Invalid index.")
+                return False
+
+        for card in sacrificed_cards:
+            self.player_cards.remove(card)
+            self.discard_cards.append(card)
+    
+        return True
 
     def swap_turn(self):
         self.turn = 1 if self.turn == 2 else 2
@@ -219,46 +253,51 @@ class RegicideEnv(gym.Env):
         self.discard_cards   = []
         self.tavern_cards    = self.cards
 
-        game_running = True
+        self.obs = {
+            # Enemies left
+            "enemies_left":     12,
+            "curr_suits_left":  3,
 
-        observation = [ # TODO remove unused ones
-            self.curr_level,
-            self.enemies,
-            self.curr_enemy,   
-            self.enemies_left,   
-            self.curr_suits_left,
-            self.enemy_attack,   
-            self.enemy_health,   
-            self.num_discard,    
-            self.num_tavern,     
-            self.player_cards,
-            self.ally_cards,
-            self.played_cards,
-            self.discard_cards,
-            self.tavern_cards] 
+            # Current enemy stats
+            "enemy_suit":       random_suit,
+            "enemy_health":     self.enemy_health,
+            "enemy_attack":     self.enemy_attack,
 
-        info = {}
+            # Cards to draw
+            "num_discard":      self.num_discard,
+            "num_tavern":       self.num_tavern,
 
-        return observation, info
+            # Cards in hand
+            "player_card_suits":    [c.suit for c in self.player_cards],
+            "player_card_values":   [c.attack for c in self.player_cards],
+            "num_ally_cards":       len(self.ally_cards)
+            }
+
+        return self.obs
  
     def step(self, action):
         game_over = False
+        reward = 0
+
         if len(self.player_cards) <= 0:
             print(f"\nNone of your champions remain standing... Surrounded, your ally's champions fall soon after.\n")
             print(f"Innocents perished as corruption overtook the kingdom.\n")
             print("☠\tGame over.\t☠")
             game_over = True
-            return observation, game_over
+            reward = -1
+            return self.obs, game_over, reward
 
         # Play turn
-        enemy_is_dead, valid = self.play_card(action)
+        enemy_is_dead, valid = self.play_card(action[0])
         
         if not valid: # Bot should be punished for invalid moves
-            return observation, game_over
+            reward = -999999
+            return self.obs, game_over, reward
         
         if enemy_is_dead:
             print("\n—————————————————————") 
             print(f"\n⚔\t{self.curr_enemy.name} defeated!\t⚔")
+            reward = self.curr_level + 1
             
             if len(self.curr_suits_left) == 0: # Moving up a rank (jacks -> queens -> kings)
                 print(f"♛\tlevel defeated!\t♛") 
@@ -289,43 +328,53 @@ class RegicideEnv(gym.Env):
                 print(f"Innocents perished as corruption overtook the kingdom.\n")
                 print("☠\tGame over.\t☠")
                 game_over = True
-                return observation, game_over
+                reward = -1
+                return observation, game_over, reward
 
             # player must select which cards to give up
             else:
                 if self.curr_enemy.attack == 0:
-                    return observation, game_over
-                while True: # Loop if players choose invalid cards
-                    sacrificed_indexes = input('--> ')
-                    sacrificed = []
-                    [sacrificed.append(int(i)-1) for i in sacrificed_indexes.split(',')]
-                    sacrificed_cards = [self.player_cards[s] for s in sacrificed]
-                    sacrificed_health = sum(card.health for card in sacrificed_cards)
-                    
-                    if sacrificed_health < self.curr_enemy.attack:
-                        print(f"These cards do not suffice. They can only bear {sacrificed_health} damage.")
-                    if len(set(sacrificed_cards)) != len(sacrificed_cards):
-                        print(f"You cannot select the same card twice.")
-                    else:
-                        for card in sacrificed_cards:
-                            self.player_cards.remove(card)
-                            self.played_cards.append(card)
-                        break
+                    return observation, game_over, reward
+
+                valid = self.sacrifice_card(action[1]) # Returns whether selection is valid and handles card transfer
+
+                if not valid:
+                    reward = -999999
         
         if len(self.ally_cards) <= 0:
             print(f"\nNone of your ally's champions remain standing... Surrounded, your champions fall soon after.\n")
             print(f"Innocents perished as corruption overtook the kingdom.\n")
             print("☠\tGame over.\t☠")
+            reward = -1
             game_over = True
 
+        self.obs = {
+            # Enemies left
+            "enemies_left":     self.enemies_left,
+            "curr_suits_left":  [self.suit_map[s] for s in self.curr_suits_left],
+
+            # Current enemy stats
+            "enemy_suit":       self.suit_map[self.curr_enemy.suit],
+            "enemy_health":     self.enemy_health,
+            "enemy_attack":     self.enemy_attack,
+
+            # Cards to draw
+            "num_discard":      self.num_discard,
+            "num_tavern":       self.num_tavern,
+
+            # Cards in hand
+            "player_card_suits":    [c.suit for c in self.player_cards],
+            "player_card_values":   [c.attack for c in self.player_cards],
+            "num_ally_cards":       len(self.ally_cards),
+        }
+
         self.swap_turn()
-        return observation, game_over  # return (observation, reward, terminated_bool (whether game is over), truncated=False (end game early), info)
+        return observation, game_over, reward  # return (observation, reward, terminated_bool (whether game is over), truncated=False (end game early), info)
 
     def render(self, turn="player"):
         if turn == "start":
             print("⚔ ——————— ♛  REGICIDE ♛ ——————— ⚔")
             print("The royals have been corrupted. Defeat all 12 to save the kingdom!")
-            print("Press R for rules.")
 
             turn = "player"
 
@@ -359,13 +408,17 @@ class RegicideEnv(gym.Env):
 
 """ Run """
 env1 = RegicideEnv()
-observation, info = env1.reset(num_players = 2)
+observation = env1.reset(num_players = 2)
 game_over = False
 env1.render("start")
-while not game_over:
-    observation, game_over = env1.step(input('--> '))
-    # frame, reward, is_done = env1.step(env.action_space.sample())
-    if game_over:
+turn_count = 0
+reward = 0
+while not game_over and reward >= 0:
+    turn_count += 1
+    # observation, game_over, reward = env1.step(input('--> '))
+    observation, game_over, reward = env1.step(env1.do_action(env1.action_space.sample()))
+    if game_over or reward < 0:
         break
     else:
         env1.render()
+print("Turn count:", turn_count)
