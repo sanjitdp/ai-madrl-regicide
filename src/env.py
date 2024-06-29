@@ -359,6 +359,8 @@ class RegicideEnv(gym.Env):
             game_over = True
             reward = -1
 
+        self.swap_turn()
+
         self.obs = {
             # Enemies left
             "enemies_left":     self.enemies_left,
@@ -379,7 +381,6 @@ class RegicideEnv(gym.Env):
             "num_ally_cards":       len(self.ally_cards),
         }
 
-        self.swap_turn()
         return self.obs, game_over, reward
 
     def render(self, turn="player"):

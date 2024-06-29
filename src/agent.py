@@ -111,8 +111,10 @@ class RegicideAgent:
         
         legal_moves = []
         for la in legal_attacks:
+            la = np.pad(la, (0, max(0, 7 - len(la))), 'constant') # pad to length 7
             num_cards_left = num_cards - np.count_nonzero(la)
             for ls in legal_sacrifices:
+                ls = np.pad(ls, (0, max(0, 7 - len(ls))), 'constant') # pad to length 7
                 repeat_draw = False
                 insufficient_cards = False
                 for i in range(7):
@@ -137,6 +139,11 @@ class RegicideAgent:
         uniques = []
         [uniques.append(tup) for tup in legal_moves if tup not in uniques]
 
+        if len(uniques) == 0: # if no legal moves (game over)
+            # print("game about to be over. remaining move:", [(np.zeros(7).tolist(), np.pad(np.ones(num_cards), (0, max(0, 7 - num_cards)))).tolist()])
+            return []
+            # return [(np.zeros(7).tolist(), np.pad(np.ones(num_cards), (0, max(0, 7 - num_cards))).tolist())]
+
         return uniques
                     
     def get_action(self, observation):
@@ -145,6 +152,11 @@ class RegicideAgent:
         otherwise a random action with probability epsilon to ensure exploration.
         """
         legal_moves = self.get_legal_moves(observation)
+
+        # no remaining moves: game over
+        if len(legal_moves) == 0:
+            return None
+
         legal_move_IDs = [self.ID_action(move) for move in legal_moves] # ie [0, 1, ... 0] -> 12621
 
         # illegal moves have negative q values (indexing by move ID)
@@ -154,7 +166,6 @@ class RegicideAgent:
 
         # with probability epsilon return a random LEGAL action to explore the environment
         if np.random.random() < self.epsilon:
-            # print("# LMs:", len(legal_moves))
             selected = random.sample(legal_moves, 1)[0]
             # print("selected randomly:", selected)
             return selected

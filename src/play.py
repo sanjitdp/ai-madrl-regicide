@@ -4,6 +4,9 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
+# TODO
+# Bug spotted: "Invalid indices" for valid cards in player 2 attack turn.
+
 # helper functions
 def vectorize_obs(observation):
     obs_vector = np.zeros(24)
@@ -43,7 +46,6 @@ avg_turns_history = []
 
 # Play and learn
 for episode in tqdm(range(n_episodes)):
-
     observation = vectorize_obs(env.reset())
     game_over, turn_count, reward = False, 0, 0
     total_eps += 1
@@ -57,6 +59,14 @@ for episode in tqdm(range(n_episodes)):
             env.render()
 
         action = agent.get_action(observation)
+
+        if not action: # no legal actions found
+            game_over = True
+            reward = -1
+            if verbose:
+                print("No remaining legal actions. GAME OVER.")
+            break
+
         next_observation, game_over, reward = env.step(env.do_action(action))
 
         action, next_observation = agent.ID_action(action), vectorize_obs(next_observation)
