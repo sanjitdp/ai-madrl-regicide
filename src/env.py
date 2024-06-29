@@ -7,9 +7,6 @@ import random
 REGICIDE ENV
 Setup for a 2-player game of Regicide, to be played by a person through terminal or an AI model.
 
-TODO
-* If your cards go to 0, the game still gives your ally a chance to play diamonds. Check if this is valid (Probably isn't)
-
 %%%%%%%%
 
 * Action space
@@ -62,8 +59,9 @@ class AnimalCompanion(Card):
         self.name = f"animal companion (A) of {self.suit}"
 
 class RegicideEnv(gym.Env):
-    def __init__(self):
+    def __init__(self, verbose=True):
         super().__init__()
+        self.verbose = verbose
         self.suit_map = {'hearts': 1, 'diamonds': 2, 'spades': 3, 'clubs': 4}
         self.action_space = Tuple([MultiBinary(7), MultiBinary(7),])
         self.observation_space = Dict(
@@ -89,8 +87,8 @@ class RegicideEnv(gym.Env):
 
     # Helper functions ___________________________________________
     def do_action(self, action):
-        player_attack = ",".join(str(n+1) for n in np.nonzero(action[0])[0])
-        player_defend = ",".join(str(n+1) for n in np.nonzero(action[1])[0])
+        player_attack = [i + 1 for i, x in enumerate(action[0]) if x == 1]
+        player_defend = [i + 1 for i, x in enumerate(action[1]) if x == 1]
         return (player_attack, player_defend)
 
     def apply_suit(self, suits, attack):
@@ -115,8 +113,8 @@ class RegicideEnv(gym.Env):
                         if len(self.ally_cards) < 7:
                             self.ally_cards.append(self.tavern_cards.pop())
                             diamond_value -= 1
-                    print(f"Player:\t{old_P_len}/7 —> {len(self.player_cards)}/7")
-                    print(f"Ally:\t{old_A_len}/7 —> {len(self.ally_cards)}/7")
+                    print(f"Player:\t{old_P_len}/7 —> {len(self.player_cards)}/7") if self.verbose else None
+                    print(f"Ally:\t{old_A_len}/7 —> {len(self.ally_cards)}/7") if self.verbose else None
                     
                 if suit == "spades":
                     self.curr_enemy.attack = max(0, self.curr_enemy.attack - attack)
@@ -126,16 +124,15 @@ class RegicideEnv(gym.Env):
 
     def play_card(self, action):
         if not action:
-            print("No cards selected.")
-            return False, False
+            print("Yielding.") if self.verbose else None
+            return False, True
 
-        for a in action.split(','): # index error
-            if len(a) > 1 or int(a) > len(self.player_cards):
-                    print(f"Invalid index.")
-                    return False, False
+        if len(action) > 1 or int(action[0]) > len(self.player_cards):
+                print(f"Invalid index. Selected indices: {action}") if self.verbose else None
+                return False, False
 
         if len(action) == 1: # valid index(es), check plays
-            play = int(action) - 1
+            play = int(action[0]) - 1
             cards_played = [self.player_cards[play]]
         else:
             plays = []
@@ -144,19 +141,19 @@ class RegicideEnv(gym.Env):
 
         if len(cards_played) >= 2: # check card validity
             if any([card.attack != cards_played[0].attack for card in cards_played]) and len(cards_played) > 2: # Playing different-valued cards together
-                print(f"Invalid play. Cards must have the same value, or paired with one animal companion, to be played together.\nAttempted to play: {', '.join([c.name for c in cards_played])}")
+                print(f"Invalid play. Cards must have the same value, or paired with one animal companion, to be played together.\nAttempted to play: {', '.join([c.name for c in cards_played])}") if self.verbose else None
                 return False, False
             if sum(card.attack for card in cards_played) > 10 and not any([card.attack == 1 for card in cards_played]): # Playing same-valued cards with sum > 10
-                print(f"Invalid play. Combo card plays cannot sum to a value greater than 10.\nAttempted to play: {', '.join([c.name for c in cards_played])}")
+                print(f"Invalid play. Combo card plays cannot sum to a value greater than 10.\nAttempted to play: {', '.join([c.name for c in cards_played])}") if self.verbose else None
                 return False, False
             if len(cards_played) > 2 and any([card.attack == 1 for card in cards_played]): # Playing animal companions with more than one other card
-                print(f"Invalid play. Animal companions can only be played with up to one additional card.\nAttempted to play: {', '.join([c.name for c in cards_played])}")
+                print(f"Invalid play. Animal companions can only be played with up to one additional card.\nAttempted to play: {', '.join([c.name for c in cards_played])}") if self.verbose else None
                 return False, False
             if len(set(cards_played)) != len(cards_played): # Inputting same index 
-                print(f"Invalid play. You cannot select the same card more than once per play: {', '.join([c.name for c in cards_played])}")
+                print(f"Invalid play. You cannot select the same card more than once per play: {', '.join([c.name for c in cards_played])}") if self.verbose else None
                 return False, False
         
-        print(f"You played {', '.join([c.name for c in cards_played])}")
+        print(f"You played {', '.join([c.name for c in cards_played])}") if self.verbose else None
 
         attack = 0
         suits = set()
@@ -179,7 +176,7 @@ class RegicideEnv(gym.Env):
         if self.curr_enemy.health == 0:
             self.tavern_cards.append(self.curr_enemy)
             enemy_is_dead = True
-            print("perfect kill!")
+            print("perfect kill!") if self.verbose else None
         elif self.curr_enemy.health < 0:
             self.discard_cards.append(self.curr_enemy)
             enemy_is_dead = True
@@ -188,26 +185,26 @@ class RegicideEnv(gym.Env):
 
     def sacrifice_card(self, action):
         if len(action) == 0 and self.enemy_attack > 0:
-            print("No cards selected.")
+            print("No cards selected.") if self.verbose else None
             return False
 
-        sacrificed_indexes = action.split(',')
+        sacrificed_indexes = action
 
         for sacrificed_index in sacrificed_indexes:
             if int(sacrificed_index) > len(self.player_cards) or int(sacrificed_index) <= 0:
-                print(f"Invalid index.")
+                print(f"Invalid index. Selected indices: {sacrificed_indexes}") if self.verbose else None
                 return False
 
         sacrificed_cards = [self.player_cards[int(i)-1] for i in sacrificed_indexes]
         sacrificed_health = sum(card.health for card in sacrificed_cards)
-        print(f"You selected {', '.join([card.name for card in sacrificed_cards])} for sacrifice.")
+        print(f"You selected {', '.join([card.name for card in sacrificed_cards])} for sacrifice.") if self.verbose else None
         
 
         if sacrificed_health < self.curr_enemy.attack:
-            print(f"These cards do not suffice. They can only bear {sacrificed_health} damage.")
+            print(f"These cards do not suffice. They can only bear {sacrificed_health} damage.") if self.verbose else None
             return False
         if len(set(sacrificed_cards)) != len(sacrificed_cards):
-            print(f"You cannot select the same card twice.")
+            print(f"You cannot select the same card twice.") if self.verbose else None
             return False
 
         for card in sacrificed_cards:
@@ -292,9 +289,9 @@ class RegicideEnv(gym.Env):
         reward = 0
 
         if len(self.player_cards) <= 0:
-            print(f"\nNone of your champions remain standing... Surrounded, your ally's champions fall soon after.\n")
-            print(f"Innocents perished as corruption overtook the kingdom.\n")
-            print("☠\tGame over.\t☠")
+            print(f"\nNone of your champions remain standing... Surrounded, your ally's champions fall soon after.\n") if self.verbose else None
+            print(f"Innocents perished as corruption overtook the kingdom.\n") if self.verbose else None
+            print("☠\tGame over.\t☠") if self.verbose else None
             game_over = True
             reward = -1
             return self.obs, game_over, reward
@@ -308,15 +305,15 @@ class RegicideEnv(gym.Env):
             return self.obs, game_over, reward
         
         if enemy_is_dead:
-            print("\n—————————————————————") 
-            print(f"\n⚔\t{self.curr_enemy.name} defeated!\t⚔")
+            print("\n—————————————————————")  if self.verbose else None
+            print(f"\n⚔\t{self.curr_enemy.name} defeated!\t⚔") if self.verbose else None
             reward = self.curr_level + 1
             
             if len(self.curr_suits_left) == 0: # Moving up a rank (jacks -> queens -> kings)
-                print(f"♛\tlevel defeated!\t♛") 
+                print(f"♛\tlevel defeated!\t♛")  if self.verbose else None
                 self.curr_level += 1
                 if self.curr_level == 3:    # Game won
-                    print(f"✦✦✦ —— ⚔ You've saved the kingdom from all corrupted regals! ⚔ —— ✦✦✦\n")
+                    print(f"✦✦✦ —— ⚔ You've saved the kingdom from all corrupted regals! ⚔ —— ✦✦✦\n") if self.verbose else None
                     game_over = True
                 else:
                     self.curr_suits_left = ["hearts", "diamonds", "clubs", "spades"]
@@ -337,9 +334,9 @@ class RegicideEnv(gym.Env):
             # no choice can win. game over!
             total_health = sum(card.health for card in self.player_cards)
             if total_health < self.curr_enemy.attack:
-                print(f"The {self.curr_enemy.name} slaughtered your remaining champions... Surrounded, your ally's champions fell soon after.\n")
-                print(f"Innocents perished as corruption overtook the kingdom.\n")
-                print("☠\tGame over.\t☠")
+                print(f"The {self.curr_enemy.name} slaughtered your remaining champions... Surrounded, your ally's champions fell soon after.\n") if self.verbose else None
+                print(f"Innocents perished as corruption overtook the kingdom.\n") if self.verbose else None
+                print("☠\tGame over.\t☠") if self.verbose else None
                 game_over = True
                 reward = -1
                 return self.obs, game_over, reward
@@ -356,9 +353,9 @@ class RegicideEnv(gym.Env):
                     reward = -999999
         
         if len(self.ally_cards) <= 0:
-            print(f"\nNone of your ally's champions remain standing... Surrounded, your champions fall soon after.\n")
-            print(f"Innocents perished as corruption overtook the kingdom.\n")
-            print("☠\tGame over.\t☠")
+            print(f"\nNone of your ally's champions remain standing... Surrounded, your champions fall soon after.\n") if self.verbose else None
+            print(f"Innocents perished as corruption overtook the kingdom.\n") if self.verbose else None
+            print("☠\tGame over.\t☠") if self.verbose else None
             game_over = True
             reward = -1
 
@@ -386,6 +383,9 @@ class RegicideEnv(gym.Env):
         return self.obs, game_over, reward
 
     def render(self, turn="player"):
+        if not self.verbose:
+            return None
+            
         if turn == "start":
             print("⚔ ——————— ♛  REGICIDE ♛ ——————— ⚔")
             print("The royals have been corrupted. Defeat all 12 to save the kingdom!")
