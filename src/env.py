@@ -137,7 +137,7 @@ class RegicideEnv(gym.Env):
             cards_played = [self.player_cards[play]]
         else:
             plays = []
-            [plays.append(int(card)-1) for card in action.split(',')],
+            [plays.append(int(card)-1) for card in action],
             cards_played = [self.player_cards[play] for play in plays]
 
         if len(cards_played) >= 2: # check card validity
