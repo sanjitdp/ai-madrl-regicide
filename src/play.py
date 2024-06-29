@@ -4,9 +4,6 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-# TODO
-# Bug spotted: "Invalid indices" for valid cards in player 2 attack turn.
-
 # helper functions
 def vectorize_obs(observation):
     obs_vector = np.zeros(24)
@@ -38,7 +35,7 @@ agent = RegicideAgent(
 )
 
 # Create env
-verbose = True
+verbose = (n_episodes < 10)
 env = RegicideEnv(verbose=verbose)
 total_turns = 0 # running average of turn_count
 total_eps = 0

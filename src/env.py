@@ -127,9 +127,10 @@ class RegicideEnv(gym.Env):
             print("Yielding.") if self.verbose else None
             return False, True
 
-        if len(action) > 1 or int(action[0]) > len(self.player_cards):
-                print(f"Invalid index. Selected indices: {action}") if self.verbose else None
-                return False, False
+        for a in action:
+            if int(a) > len(self.player_cards):
+                    print(f"Invalid index. Selected indices: {action}") if self.verbose else None
+                    return False, False
 
         if len(action) == 1: # valid index(es), check plays
             play = int(action[0]) - 1
