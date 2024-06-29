@@ -87,6 +87,8 @@ class RegicideEnv(gym.Env):
 
     # Helper functions ___________________________________________
     def do_action(self, action):
+        if isinstance(action[0], int):
+            print(action)
         player_attack = [i + 1 for i, x in enumerate(action[0]) if x == 1]
         player_defend = [i + 1 for i, x in enumerate(action[1]) if x == 1]
         return (player_attack, player_defend)

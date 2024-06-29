@@ -21,7 +21,7 @@ def vectorize_obs(observation):
 
 # hyperparameters
 learning_rate = 0.001
-n_episodes = 100_000
+n_episodes = 1000
 start_epsilon = 1.0
 epsilon_decay = start_epsilon / n_episodes / 2  # reduce the exploration over time
 final_epsilon = 0.1
@@ -51,17 +51,17 @@ for episode in tqdm(range(n_episodes)):
         turn_count += 1
         total_turns += 1
         
-        if verbose:
-            print("turn:", turn_count)
-            env.render()
+        # if verbose:
+        #     print("turn:", turn_count)
+        #     env.render()
 
         action = agent.get_action(observation)
 
         if not action: # no legal actions found
             game_over = True
             reward = -1
-            if verbose:
-                print("No remaining legal actions. GAME OVER.")
+            # if verbose:
+            #     print("No remaining legal actions. GAME OVER.")
             break
 
         next_observation, game_over, reward = env.step(env.do_action(action))
@@ -73,10 +73,10 @@ for episode in tqdm(range(n_episodes)):
 
     avg_turns = total_turns / total_eps
     avg_turns_history.append(avg_turns)
-    print(f"\nepisode {episode}  —  turn count: {turn_count}\t(avg: {str(avg_turns)[:6]})")
+    # print(f"\nepisode {episode}  —  turn count: {turn_count}\t(avg: {str(avg_turns)[:6]})")
     agent.decay_epsilon(epsilon_decay)
 
 
-(f"final turn count: {avg_turns_history[-1]}")
-plt.plot(avg_turns_history, range(n_episodes))
-plt.savefig("history")
+# (f"final turn count: {avg_turns_history[-1]}")
+# plt.plot(avg_turns_history, range(n_episodes))
+# plt.savefig("history")

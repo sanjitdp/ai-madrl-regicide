@@ -167,13 +167,13 @@ class RegicideAgent:
         # with probability epsilon return a random LEGAL action to explore the environment
         if np.random.random() < self.epsilon:
             selected = random.sample(legal_moves, 1)[0]
-            # print("selected randomly:", selected)
             return selected
 
         # with probability (1 - epsilon) act greedily
         else:  # should select only legal moves as illegal ones have neg. q-vals
             selected = self.ID_to_action(np.argmax(self.q_values[observation])) # np.argmax returns index of max value, which will be an action ID with highest q-val
-            # print("Greedy selection:", selected)
+            selected = (selected[:7], selected[7:])
+            print("Greedy selection:", np.max(self.q_values[observation]))
             return selected
 
     def update(self, action, observation, game_over, reward, next_observation):
