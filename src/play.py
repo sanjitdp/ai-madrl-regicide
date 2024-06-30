@@ -21,9 +21,10 @@ def vectorize_obs(observation):
 
 # hyperparameters
 learning_rate = 0.001
-n_episodes = 1000
+n_episodes = 10000
 start_epsilon = 1.0
-epsilon_decay = start_epsilon / n_episodes / 2  # reduce the exploration over time
+epsilon_decay = start_epsilon / n_episodes / 10  # reduce the exploration over time
+print("epsilon decay =", epsilon_decay)
 final_epsilon = 0.1
 
 # create agent
@@ -39,7 +40,7 @@ verbose = (n_episodes < 10)
 env = RegicideEnv(verbose=verbose)
 total_turns = 0 # running average of turn_count
 total_eps = 0
-avg_turns_history = []
+turns_history = []
 
 # Play and learn
 for episode in tqdm(range(n_episodes)):
@@ -72,11 +73,15 @@ for episode in tqdm(range(n_episodes)):
         observation = next_observation
 
     avg_turns = total_turns / total_eps
-    avg_turns_history.append(avg_turns)
+    turns_history.append(turn_count)
     # print(f"\nepisode {episode}  —  turn count: {turn_count}\t(avg: {str(avg_turns)[:6]})")
     agent.decay_epsilon(epsilon_decay)
 
 
-# (f"final turn count: {avg_turns_history[-1]}")
-# plt.plot(avg_turns_history, range(n_episodes))
-# plt.savefig("history")
+print(f"final turn count: {turns_history[-1]}, avg turn count: {avg_turns}")
+plt.plot(range(n_episodes), turns_history, c="indigo", lw=0.2)
+plt.axhline(avg_turns, c="black", zorder=3, ls="--")
+plt.xlabel("Episodes")
+plt.ylabel("Game length (turns)")
+plt.title("Game duration over episodes played")
+plt.savefig("history")

@@ -173,7 +173,7 @@ class RegicideAgent:
         else:  # should select only legal moves as illegal ones have neg. q-vals
             selected = self.ID_to_action(np.argmax(self.q_values[observation])) # np.argmax returns index of max value, which will be an action ID with highest q-val
             selected = (selected[:7], selected[7:])
-            print("Greedy selection:", np.max(self.q_values[observation]))
+            print("\nGreedy selection:", np.max(self.q_values[observation]))
             return selected
 
     def update(self, action, observation, game_over, reward, next_observation):
